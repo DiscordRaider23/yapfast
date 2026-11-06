@@ -495,6 +495,8 @@ impl Adapter {
             .filter(|request| request.incoming && !request.spam)
             .count() as u64;
         window.set_dms_badge(count_badge(dm_mentions + incoming));
+                   // The same count on the taskbar icon, as Discord shows it.
+           crate::icon::show_count(window.window(), dm_mentions + incoming);
         window.set_discord_linked(
             state.discord_linked || state.servers.iter().any(|server| server.discord),
         );
