@@ -92,6 +92,15 @@ export component Composer inherits Rectangle {
     // emoji is taller than its line.
     property <length> overhang: 4px;
     property <length> line: root.text-size * 1.5;
+    // SmoothType: the text caret is drawn as a rectangle that glides to each new
+    // position, instead of jumping. Turn it off to get Slint's own caret back.
+    in property <bool> smooth-caret: true;
+    in property <color> smooth-caret-color: Theme.text;
+    // Where the caret is, in the field's own coordinates, and whether its
+    // blink is showing it.
+    property <length> glide-x;
+    property <length> glide-y;
+    property <bool> glide-on: true;
     // Where the menu opens: the pointer, from the composer's corner.
     property <length> menu-x;
     property <length> menu-y;
@@ -107,6 +116,13 @@ export component Composer inherits Rectangle {
         : [root.paste-row, root.select-all-row];
     horizontal-stretch: 1;
     height: max(48px, min(input.preferred-height + 2 * root.pad, 10 * root.line + 2 * root.pad));
+    // Blinks the glided caret while the field has the keyboard. A move restarts it,
+    // so the caret stays solid while you type or click.
+    blink := Timer {
+        interval: 530ms;
+        running: root.smooth-caret && input.has-focus;
+        triggered => { root.glide-on = !root.glide-on; }
+    }
     Text {
         x: 6px; y: root.pad; width: root.width - 12px; height: root.line;
         visible: root.text == "";
@@ -171,17 +187,37 @@ export component Composer inherits Rectangle {
                 color: root.enabled ? Theme.text : Theme.muted;
                 selection-background-color: Theme.accent.with-alpha(0.35);
                 selection-foreground-color: Theme.text;
+                text-cursor-width: root.smooth-caret ? 0px : 2px;
                 accessible-label: root.label;
                 changed has-focus => { if self.has-focus { root.got-focus(); } }
                 edited => { root.edited(self.text); root.caret(self.text, self.cursor-position-byte-offset); }
                 cursor-position-changed(position) => {
                     root.caret(self.text, self.cursor-position-byte-offset);
+                    root.glide-x = position.x;
+                    root.glide-y = position.y;
+                    root.glide-on = true;
+                    blink.restart();
                     if position.y + flick.content-y < 0px {
                         flick.content-y = -position.y;
                     } else if position.y + root.line + 2 * root.overhang + flick.content-y > flick.height {
                         flick.content-y = flick.height - position.y - root.line - 2 * root.overhang;
                     }
                 }
+            }
+            // SmoothType's caret. Change the 60ms and `ease` to change how it glides:
+            // `ease` can be linear, ease-in, ease-out or ease-in-out.
+            glide := Rectangle {
+                visible: root.smooth-caret && root.enabled && input.has-focus;
+                x: root.glide-x;
+                y: input.y + root.glide-y;
+                width: 2px;
+                height: root.line;
+                border-radius: 1px;
+                background: root.smooth-caret-color;
+                opacity: root.glide-on ? 1 : 0;
+                animate x { duration: 60ms; easing: ease; }
+                animate y { duration: 60ms; easing: ease; }
+                animate opacity { duration: 150ms; easing: ease-in-out; }
             }
         }
     }
